@@ -8,7 +8,7 @@ from langchain_core import output_parsers
 from langchain_openai import ChatOpenAI
 # from langchain_ollama import Ollama
 from langchain_tavily import TavilySearch
-from langchain_core.output_parsers import PydanticOutputParser
+# from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda #this is a part of langchain expression language that allows us to compose and chain together different components of langchain.
 
@@ -20,21 +20,22 @@ load_dotenv()
 
 tools = [TavilySearch()]   #lc toola is component that allows the llm's to interact with the external utilities.
 llm = ChatOpenAI(model="gpt-4")
+structured_llm = llm.with_structured_output(AgentResponse)
 # llm = Ollama(model="llama3.2")
 # react_prompt = hub.pull("hwchase17/react")
 
-output_parsers = PydanticOutputParser(pydantic_object=AgentResponse) #this is a part of langchain expression language that allows us to parse the output of the agent into a pydantic object.
+# output_parsers = PydanticOutputParser(pydantic_object=AgentResponse) #this is a part of langchain expression language that allows us to parse the output of the agent into a pydantic object.
 
 react_prompt_with_format_instructions = PromptTemplate(
      template= REACT_PROMPT_WITH_FORMAT_INSTRUCTIONS,
      input_variables=["input", "agent_scratchpad", "tool_names"]
-      ).partial(format_instructions=output_parsers.get_format_instructions())
+      ).partial(format_instructions="")
 
 agent = create_react_agent(llm=llm, tools=tools, prompt=react_prompt_with_format_instructions, ) #create a reasoning agent that can use the tools to answer the question. reasoning chain.
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True) #runtime of the agent, its generally a for loop.
 extract_output = RunnableLambda(lambda x: x.get("output"))
-parse_output = RunnableLambda(lambda x: output_parsers.parse(x))
-chain = agent_executor | extract_output | parse_output
+# parse_output = RunnableLambda(lambda x: output_parsers.parse(x))
+chain = agent_executor | extract_output | structured_llm #structured_llm is a part of langchain expression language that allows us to parse the output of the agent into a pydantic object.
 
 
 def main():
