@@ -32,7 +32,9 @@ react_prompt_with_format_instructions = PromptTemplate(
 
 agent = create_react_agent(llm=llm, tools=tools, prompt=react_prompt_with_format_instructions, ) #create a reasoning agent that can use the tools to answer the question. reasoning chain.
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True) #runtime of the agent, its generally a for loop.
-chain = agent_executor
+extract_output = RunnableLambda(lambda x: x.get("output"))
+parse_output = RunnableLambda(lambda x: output_parsers.parse(x))
+chain = agent_executor | extract_output | parse_output
 
 
 def main():
