@@ -1,51 +1,68 @@
-from unittest import result
-
 from dotenv import load_dotenv
-from langchain import hub #designed for sharing and exploring prompts,chains,agents,created by the community.
-from langchain.agents import agent, create_react_agent, AgentExecutor# is going to be the runtime of the agent, its generally a for loop.
-# from langchain_classics.agents import AgentExecutor
-from langchain_core import output_parsers
+from langchain.agents import create_agent
+from langchain.agents.structured_output import ProviderStrategy
 from langchain_openai import ChatOpenAI
-# from langchain_ollama import Ollama
 from langchain_tavily import TavilySearch
-# from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnableLambda #this is a part of langchain expression language that allows us to compose and chain together different components of langchain.
 
-#importing schemas and prompts from the schemas.py and prompt.py files.
+# importing schemas from the schemas.py file
 from schemas import AgentResponse
-from prompt import REACT_PROMPT_WITH_FORMAT_INSTRUCTIONS
+
 load_dotenv()
 
 
-tools = [TavilySearch()]   #lc toola is component that allows the llm's to interact with the external utilities.
-llm = ChatOpenAI(model="gpt-4")
-structured_llm = llm.with_structured_output(AgentResponse)
-# llm = Ollama(model="llama3.2")
-# react_prompt = hub.pull("hwchase17/react")
+# Define tools - TavilySearch allows the agent to search the web
+tools = [TavilySearch()]
 
-# output_parsers = PydanticOutputParser(pydantic_object=AgentResponse) #this is a part of langchain expression language that allows us to parse the output of the agent into a pydantic object.
+# Create the LLM model
+model = ChatOpenAI(model="gpt-4")
 
-react_prompt_with_format_instructions = PromptTemplate(
-     template= REACT_PROMPT_WITH_FORMAT_INSTRUCTIONS,
-     input_variables=["input", "agent_scratchpad", "tool_names"]
-      ).partial(format_instructions="")
+# System prompt for the agent - defines how the agent should behave
+system_prompt = """Answer the following questions as best you can. You have access to search tools.
 
-agent = create_react_agent(llm=llm, tools=tools, prompt=react_prompt_with_format_instructions, ) #create a reasoning agent that can use the tools to answer the question. reasoning chain.
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True) #runtime of the agent, its generally a for loop.
-extract_output = RunnableLambda(lambda x: x.get("output"))
-# parse_output = RunnableLambda(lambda x: output_parsers.parse(x))
-chain = agent_executor | extract_output | structured_llm #structured_llm is a part of langchain expression language that allows us to parse the output of the agent into a pydantic object.
+Use the following approach:
+1. Think about what information you need
+2. Use the available tools to gather information
+3. Synthesize the information into a comprehensive answer
+4. Include relevant sources in your response
+
+Be thorough and provide detailed answers with proper source attribution."""
+
+# Create the agent using the new create_agent interface
+# - Uses ProviderStrategy for structured output (OpenAI's native structured output)
+# - Automatically handles the ReAct loop (Reasoning + Acting)
+# - No need for separate AgentExecutor or manual chaining
+agent = create_agent(
+    model=model,
+    tools=tools,
+    system_prompt=system_prompt,
+    response_format=ProviderStrategy(AgentResponse)
+)
 
 
 def main():
-    print("hello from main function")
-    result = chain.invoke(
-        input={
-            "input": "Search of 3 job postings for an ai engineer using langchain in the india on linkedin and list their details"
-        }
-    )
-    print(result) #this is dictionary contains answer and sources that we specified in the schema.py file.
+    print("Hello from main function")
+    
+    # Invoke the agent with a message
+    # The new interface uses a messages-based format
+    result = agent.invoke({
+        "messages": [{
+            "role": "user",
+            "content": "Search for 3 job postings for an AI engineer using langchain in India on LinkedIn and list their details"
+        }]
+    })
+    
+    # The structured response (AgentResponse) is in result["structured_response"]
+    structured_response = result.get("structured_response")
+    
+    if structured_response:
+        print("\n=== Agent Response ===")
+        print(f"Answer: {structured_response.answer}")
+        print(f"\nSources ({len(structured_response.sources)}):")
+        for i, source in enumerate(structured_response.sources, 1):
+            print(f"  {i}. {source.Url}")
+    else:
+        print("\n=== Full Result ===")
+        print(result)
 
 
 if __name__ == "__main__":
