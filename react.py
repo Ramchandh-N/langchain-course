@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
-from langchain_core.tools import tool   # this will help us to create a tool for the agent
+from langchain_core.tools import \
+    tool  # this will help us to create a tool for the agent
 from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 
@@ -14,4 +15,9 @@ def triple(num:float) -> float:
     return num * 3
 
 tools = [TavilySearch(max_results=1), triple] #tavily search has already has the description of the tool so we don't need to add it here
+
+#reasoning agent
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+reasoning_agent = llm.bind_tools(tools)
+
 
